@@ -5,9 +5,8 @@ registration to completion, store the registration certificates, and hand them b
 for provider submission. Without a verified certificate the trust cannot be activated; the app enforces that gate.
 
 - Project status and requirement coverage: [`../../PROJECT_STATUS.md`](../../PROJECT_STATUS.md)
-- Developer checklist: [`BACKEND_PROGRESS.md`](BACKEND_PROGRESS.md)
 - Database provisioning for the shared Supabase project: [`PROVISIONING.md`](PROVISIONING.md)
-- Local Supabase setup (Docker): [`BACKEND_SETUP.md`](BACKEND_SETUP.md)
+- Google Cloud deployment: [`deploy/gcloud/README.md`](deploy/gcloud/README.md)
 
 ## Run it now (placeholder data, no database)
 
@@ -53,7 +52,9 @@ npm run build
 | `AUTH_MODE` + `NEXT_PUBLIC_AUTH_MODE` | `dev` / `supabase` | `dev` picks the role from an `x-dev-role` header (refused in production builds); `supabase` uses the session cookie and `trust_reg.profiles` |
 | `NOTIFICATION_PROVIDER` | `console` / `resend` / `sendgrid` | where WM and AEP emails go |
 
-See `.env.local.example` for every variable, including the evidence bucket, cron secret and email settings.
+One template, `.env.example`, documents every variable and four presets (placeholder demo, local real database,
+shared AWM project, Docker). Copy it to `.env.local`; that single file is read by Next, the integration test and
+Docker Compose alike.
 
 ## How the workflow works
 
@@ -97,7 +98,7 @@ The image is a multi-stage build on `node:22-alpine` using Next's standalone out
 exposes port 3000 and answers `GET /api/health` for the container healthcheck.
 
 ```bash
-cp .env.docker.example .env.docker      # fill in Supabase keys, service role key, cron secret
+cp .env.example .env.local               # preset D: http + supabase, fill in keys and cron secret
 npm run docker:up                        # build + start, http://localhost:3000
 npm run docker:logs
 npm run docker:migrate                   # prisma migrate deploy against DATABASE_URL (once Colin has created trust_reg)
@@ -109,7 +110,7 @@ What goes where:
 | Value | Where it is read | Why |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_DATA_SOURCE`, `NEXT_PUBLIC_AUTH_MODE` | build args (compiled into the browser bundle) | change them → rebuild the image |
-| `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_MODE`, email, storage, `CRON_SECRET` | runtime env (`env_file: .env.docker`) | one image can be promoted between environments |
+| `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_MODE`, email, storage, `CRON_SECRET` | runtime env (`env_file: .env.local`) | one image can be promoted between environments |
 | `DATABASE_URL` | `migrator` service only | the app itself never opens a Postgres connection |
 
 `.env*` files are excluded from the build context by `.dockerignore`, so no secret is baked into a layer.
@@ -119,7 +120,7 @@ Compose services:
 - `app` — the Next.js server (read-only root filesystem, tmpfs for `/tmp` and the Next cache).
 - `migrator` (profile `tools`) — `prisma migrate deploy`; override the command for `migrate status` etc.
 - `cron` (profile `jobs`) — tiny curl loop that calls `/api/jobs/daily` once a day at `DAILY_JOB_UTC`. Use it only
-  where the host has no scheduler; on Vercel `vercel.json` does this.
+  where the host has no scheduler; on Google Cloud the deploy script creates a Cloud Scheduler job instead.
 
 Build the image by hand:
 
@@ -129,14 +130,25 @@ docker build -t awm/trust-reg:1.0.0 \
   --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=... \
   --build-arg NEXT_PUBLIC_DATA_SOURCE=http \
   --build-arg NEXT_PUBLIC_AUTH_MODE=supabase .
-docker run --rm -p 3000:3000 --env-file .env.docker awm/trust-reg:1.0.0
+docker run --rm -p 3000:3000 --env-file .env.local awm/trust-reg:1.0.0
 ```
 
 For a placeholder-mode demo container (no database at all), build with `NEXT_PUBLIC_DATA_SOURCE=mock` and any
 non-empty values for the two Supabase build args.
 
+## Deploy to Google Cloud (Cloud Run)
+
+```bash
+gcloud auth login
+PROJECT_ID=<gcp-project> REGION=europe-west2 bash deploy/gcloud/deploy.sh
+```
+
+Builds with Cloud Build (no local Docker), stores the service role key, cron secret and Resend key in Secret
+Manager, deploys Cloud Run, and creates the Cloud Scheduler job for `/api/jobs/daily`. Details, email setup and
+custom domains: [`deploy/gcloud/README.md`](deploy/gcloud/README.md).
+
 ## Going live
 
 Follow `PROVISIONING.md` with Colin, set the real keys, switch to `http` + `supabase`, then run the integration
-test described there. Deploy the Docker image anywhere containers run, or push to Vercel where `vercel.json`
-already schedules the daily job.
+test described there. Hosting is Google Cloud Run via `deploy/gcloud/deploy.sh`; the same image runs anywhere
+containers run.

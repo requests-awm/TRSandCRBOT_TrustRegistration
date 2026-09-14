@@ -10,8 +10,7 @@ npm-debug.log*
 # Never bake secrets into the image. Runtime config comes from --env-file / compose env_file.
 .env
 .env.*
-!.env.local.example
-!.env.docker.example
+!.env.example
 
 # Docs and local-only files are not needed in the image
 *.md

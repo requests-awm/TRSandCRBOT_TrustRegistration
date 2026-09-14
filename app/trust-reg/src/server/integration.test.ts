@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 //   INTEGRATION_BASE_URL=http://localhost:3000 npm test -- integration
 //
 // Roles travel in the x-dev-role header (AUTH_MODE=dev only, refused in production builds).
-// The dev user ids in supabase/sql/002_seed_dev.sql must exist in trust_reg.profiles.
+// No seeded profiles are required: dev users are synthesised from the header. On a project without
+// 002_seed_dev.sql the WM email falls back to WM_FALLBACK_EMAIL or the requester's user id.
+// Passed 10/10 against the shared AWM Supabase project on 2026-09-14.
 
 const BASE = process.env.INTEGRATION_BASE_URL;
 
@@ -47,7 +49,8 @@ interface DocRow {
   file_hash: string | null;
 }
 
-describe.skipIf(!BASE)("happy path: create → register → verify → hand back → download → close", () => {
+// Remote databases add ~1s per round trip; some steps make five calls.
+describe.skipIf(!BASE)("happy path: create → register → verify → hand back → download → close", { timeout: 60_000 }, () => {
   const stamp = Date.now();
   let caseId = "";
   let reqId = "";

@@ -1,0 +1,65 @@
+# Cloud Build: build the runner image (no local Docker needed), push to Artifact Registry, deploy to Cloud Run.
+#
+#   # from app/trust-reg (the build context; .gcloudignore keeps node_modules, .next and .env* out of the upload)
+#   gcloud builds submit . --config deploy/gcloud/cloudbuild.yaml \
+#     --substitutions=_REGION=europe-west2,_SERVICE=trust-reg,_REPO=awm,_SUPABASE_URL=https://xxx.supabase.co,_SUPABASE_ANON_KEY=sb_publishable_...,SHORT_SHA=manual
+#
+# deploy/gcloud/deploy.sh wraps this and also creates the secrets, service account and scheduler job.
+# NEXT_PUBLIC_* values are compiled into the browser bundle, hence build substitutions, not runtime env.
+
+substitutions:
+  _REGION: europe-west2
+  _SERVICE: trust-reg
+  _REPO: awm
+  _SUPABASE_URL: ""
+  _SUPABASE_ANON_KEY: ""
+  _DATA_SOURCE: http
+  _AUTH_MODE: supabase
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --target=runner
+      - --build-arg=NEXT_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}
+      - --build-arg=NEXT_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}
+      - --build-arg=NEXT_PUBLIC_DATA_SOURCE=${_DATA_SOURCE}
+      - --build-arg=NEXT_PUBLIC_AUTH_MODE=${_AUTH_MODE}
+      - -t=${_IMAGE}:${SHORT_SHA}
+      - -t=${_IMAGE}:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, "${_IMAGE}"]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --port=3000
+      - --allow-unauthenticated
+      - --min-instances=0
+      - --max-instances=3
+      - --cpu=1
+      - --memory=512Mi
+      - --timeout=300
+      - --service-account=${_SERVICE}-run@${PROJECT_ID}.iam.gserviceaccount.com
+      - --set-env-vars=^@^NODE_ENV=production@AUTH_MODE=${_AUTH_MODE}@NEXT_PUBLIC_AUTH_MODE=${_AUTH_MODE}@NEXT_PUBLIC_DATA_SOURCE=${_DATA_SOURCE}@NEXT_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}@NEXT_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}@EVIDENCE_BUCKET=trust-registration-evidence@MAX_UPLOAD_BYTES=26214400@DEADLINE_WARNING_DAYS=14@NOTIFICATION_FROM_EMAIL=trust-registration@ascotwm.com
+      - --update-secrets=SUPABASE_SERVICE_ROLE_KEY=trust-reg-supabase-service-role-key:latest,CRON_SECRET=trust-reg-cron-secret:latest,RESEND_API_KEY=trust-reg-resend-api-key:latest
+
+images:
+  - ${_IMAGE}:${SHORT_SHA}
+  - ${_IMAGE}:latest

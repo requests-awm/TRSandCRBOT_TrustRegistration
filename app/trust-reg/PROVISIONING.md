@@ -40,8 +40,16 @@ Run `supabase/sql/003_storage.sql`. It creates the private bucket `trust-registr
 (25 MiB, PDF / PNG / JPEG / Word) and adds a `storage.objects` policy that denies anon and authenticated roles
 access to that bucket. Only the service role reads and writes it; users receive 5-minute signed URLs from the API.
 
-## 5. Expose the schema to PostgREST
-Add `trust_reg` to the project's exposed schemas (`db_schemas`, Dashboard → Settings → API → Exposed schemas).
+## 5. Expose the schema to PostgREST  ✅ done 2026-09-14
+Add `trust_reg` to the project's exposed schemas (Dashboard → Settings → API → Exposed schemas), or in SQL:
+
+```sql
+-- append, never replace: other AWM tools' schemas live in the same setting
+ALTER ROLE authenticator SET pgrst.db_schemas = '<existing list>, trust_reg';
+NOTIFY pgrst, 'reload config';
+NOTIFY pgrst, 'reload schema';   -- without this PostgREST keeps the old table cache
+```
+
 The app calls `.schema("trust_reg")` on every query and `rpc("next_case_reference")`.
 
 ## 6. Issue credentials

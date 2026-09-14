@@ -1,14 +1,14 @@
 # Trust Registration Monitor (TRS / CRBOT)
 #
-#   cp .env.docker.example .env.docker                        # fill in keys
-#   docker compose --env-file .env.docker up -d --build       # app on http://localhost:3000
-#   docker compose --env-file .env.docker run --rm migrator   # prisma migrate deploy (needs DATABASE_URL)
-#   docker compose --env-file .env.docker --profile jobs up -d cron   # optional in-stack daily scheduler
+#   cp .env.example .env.local                                  # fill in keys
+#   docker compose --env-file .env.local up -d --build       # app on http://localhost:3000
+#   docker compose --env-file .env.local run --rm migrator   # prisma migrate deploy (needs DATABASE_URL)
+#   docker compose --env-file .env.local --profile jobs up -d cron   # optional in-stack daily scheduler
 #
 # --env-file makes the NEXT_PUBLIC_* values available for the build args below; env_file (per service)
 # injects the same file at runtime. The npm "docker:*" scripts pass the flag for you.
 #
-# The database, auth and storage are the shared AWM Supabase project (or `supabase start` locally);
+# The database, auth and storage are the shared AWM Supabase project (or `npm run stack` locally);
 # they are not part of this compose file.
 
 services:
@@ -17,12 +17,12 @@ services:
       context: .
       target: runner
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.docker}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set in .env.docker}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.local}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set in .env.local}
         NEXT_PUBLIC_DATA_SOURCE: ${NEXT_PUBLIC_DATA_SOURCE:-http}
         NEXT_PUBLIC_AUTH_MODE: ${NEXT_PUBLIC_AUTH_MODE:-supabase}
     image: awm/trust-reg:${IMAGE_TAG:-local}
-    env_file: .env.docker
+    env_file: .env.local
     environment:
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
@@ -47,16 +47,16 @@ services:
       context: .
       target: migrator
     image: awm/trust-reg-migrator:${IMAGE_TAG:-local}
-    env_file: .env.docker
+    env_file: .env.local
     profiles: ["tools"]
     # `docker compose run --rm migrator` runs `migrate deploy`; override the command for anything else:
     #   docker compose run --rm migrator migrate status
 
-  # Optional: call the daily job from inside the stack when the host has no scheduler (e.g. not on Vercel).
+  # Optional: call the daily job from inside the stack when the host has no scheduler (Cloud Run uses Cloud Scheduler).
   cron:
     image: curlimages/curl:8.10.1
     profiles: ["jobs"]
-    env_file: .env.docker
+    env_file: .env.local
     depends_on:
       app:
         condition: service_healthy

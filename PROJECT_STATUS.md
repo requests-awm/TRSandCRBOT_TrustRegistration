@@ -3,9 +3,27 @@
 **Updated:** 2026-09-14
 **Live code:** `app/trust-reg/` (Next.js 16, App Router, Tailwind v4, supabase-js, Prisma 7 for migrations only)
 
-## Operational proof (2026-09-14)
+## LIVE on the shared AWM Supabase project (2026-09-14, afternoon)
 
-The full lifecycle has now run end to end against a **real Postgres 17 + PostgREST 16** stack on this machine
+Tumisang applied the migrations to the shared AWM Supabase project. `trust_reg` was added to PostgREST's exposed
+schemas (alongside the 39 existing AWM schemas, all preserved) and the schema cache reloaded. With `.env.local`
+pointing at the project (`http` data source, dev-header auth), the lifecycle integration test passed **10/10**
+against it: case `NTR-2026-000001` created, TRS required / CRBOT not required, registered, certificate uploaded to
+the real `trust-registration-evidence` bucket with matching SHA-256, maker-checker refusal, verification, activation
+gate opened, WM notified, signed-URL download, hand-back, close, CSV export. The daily job ran with the cron secret.
+
+Still to do on the project: real users in `auth.users` + `trust_reg.profiles`, switch both `AUTH_MODE` values to
+`supabase`, add the Resend key, and deploy.
+
+**Hosting decision: Google Cloud Run.** `app/trust-reg/deploy/gcloud/` holds `cloudbuild.yaml`, an idempotent
+`deploy.sh` (APIs, Artifact Registry, service account, Secret Manager, Cloud Build, Cloud Run, Cloud Scheduler) and a
+README. Blocked only on `gcloud auth login` (both accounts on this laptop have expired tokens, which needs a browser),
+the Supabase publishable/anon key in `.env.local`, and a Resend API key. Email provider chosen: Resend. Two test cases named "Integration Trust <timestamp>" remain in
+the live table; soft-delete them via the API or the UI when no longer wanted.
+
+## Operational proof, local (2026-09-14, morning)
+
+The full lifecycle first ran end to end against a **real Postgres 17 + PostgREST 16** stack on this machine
 (`npm run stack:app`, no Docker: embedded Postgres binaries + PostgREST Windows build + a small gateway that emulates
 Supabase Storage and the auth-admin user lookup). The same four SQL files the shared project will receive were applied.
 
@@ -32,9 +50,10 @@ now checks both.
 What is still not the real thing: the shared AWM Supabase project (Colin), a real email provider key, Supabase Auth
 sign-in (the stack runs `AUTH_MODE=dev`), and a Docker build on a machine that has Docker.
 
-The earlier duplicate skeleton and the four superseded design documents now live under `_archive/` and are not
-part of the build. `app/node_modules` (from the old skeleton, ~500 MB) could not be removed automatically; delete it
-by hand. Handover for the database owner: `app/trust-reg/PROVISIONING.md`.
+Repository contents: `app/trust-reg/` (the application) and this file. The earlier skeleton, superseded design
+documents, Vercel config and Supabase CLI config were removed on 2026-09-14 once the shared database was live; they
+remain in git history. Handover for the database owner: `app/trust-reg/PROVISIONING.md`. Deployment:
+`app/trust-reg/deploy/gcloud/README.md`.
 
 ---
 
@@ -141,12 +160,15 @@ Verified on 2026-09-13:
   on events, atomic `next_case_reference()` (now the only allocation path in code). **Draft, unapplied.**
 - `supabase/sql/002_seed_dev.sql` — six dev users/profiles and two compliance rules. **Local only.**
 - `supabase/sql/003_storage.sql` — private `trust-registration-evidence` bucket, 25 MiB, PDF/PNG/JPEG/Word; no
-  anon/authenticated access. Mirrored in `supabase/config.toml` for `supabase start`. **Draft, unapplied.**
-- `vercel.json` — weekday 06:00 cron for `/api/jobs/daily`. Any other scheduler can call the same URL with the secret.
+  anon/authenticated access. **Applied to the shared project 2026-09-14.**
+- Daily job scheduling: Cloud Scheduler, created by `deploy/gcloud/deploy.sh` (weekdays 06:00 UTC). Any other
+  scheduler can call `/api/jobs/daily` with the bearer secret.
 
-### Docker (`Dockerfile`, `docker-compose.yml`, `.env.docker.example`)
+### Docker (`Dockerfile`, `docker-compose.yml`)
 - Multi-stage image on `node:22-alpine` using Next standalone output (`output: "standalone"`), non-root, healthcheck
-  on `GET /api/health`. `NEXT_PUBLIC_*` are build args; secrets are runtime env from `.env.docker`, never in a layer.
+  on `GET /api/health`. `NEXT_PUBLIC_*` are build args; secrets are runtime env from `.env.local`, never in a layer.
+- Environment is one template (`.env.example`, four presets) and one real file (`.env.local`) shared by Next, the
+  integration test and Docker Compose.
 - Compose: `app`, `migrator` (prisma migrate deploy, profile `tools`), optional `cron` curl loop (profile `jobs`).
 - Verified locally by running `.next/standalone/server.js` the way the container does (health, pages, static assets
   all 200). Docker itself is not installed on this machine, so `docker build` has not been executed yet.
@@ -179,11 +201,10 @@ Supabase project (Colin), email and scheduler secrets, and a Docker host.
    then `INTEGRATION_BASE_URL=http://localhost:3000 npm test -- integration`. Switch to `AUTH_MODE=supabase` after.
 3. **Email** — choose Resend or SendGrid, set the key and `APP_BASE_URL`, confirm a WM address resolves from
    `auth.users`.
-4. **Scheduler** — set `CRON_SECRET`; on Vercel the cron is already declared, elsewhere point a scheduler at
-   `/api/jobs/daily`.
+4. **Scheduler** — `CRON_SECRET` is set; `deploy/gcloud/deploy.sh` creates the Cloud Scheduler job.
 5. **Compliance sign-off** — statutory deadline days in the seed and the per-authority checklist.
-6. **Housekeeping** — delete `app/node_modules` (old skeleton) by hand; `_archive/` can go once nobody needs the
-   history. Consider `git init` so future changes are tracked.
+6. **Housekeeping** — done: repository is `app/trust-reg` + this file, tracked at
+   https://github.com/requests-awm/TRSandCRBOT_TrustRegistration.
 7. **Deployment and handover.**
 
 Estimated remaining effort: about 1 week once database access is available.
