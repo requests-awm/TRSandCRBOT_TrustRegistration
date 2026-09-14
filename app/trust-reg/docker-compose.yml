@@ -1,0 +1,74 @@
+# Trust Registration Monitor (TRS / CRBOT)
+#
+#   cp .env.docker.example .env.docker                        # fill in keys
+#   docker compose --env-file .env.docker up -d --build       # app on http://localhost:3000
+#   docker compose --env-file .env.docker run --rm migrator   # prisma migrate deploy (needs DATABASE_URL)
+#   docker compose --env-file .env.docker --profile jobs up -d cron   # optional in-stack daily scheduler
+#
+# --env-file makes the NEXT_PUBLIC_* values available for the build args below; env_file (per service)
+# injects the same file at runtime. The npm "docker:*" scripts pass the flag for you.
+#
+# The database, auth and storage are the shared AWM Supabase project (or `supabase start` locally);
+# they are not part of this compose file.
+
+services:
+  app:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.docker}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set in .env.docker}
+        NEXT_PUBLIC_DATA_SOURCE: ${NEXT_PUBLIC_DATA_SOURCE:-http}
+        NEXT_PUBLIC_AUTH_MODE: ${NEXT_PUBLIC_AUTH_MODE:-supabase}
+    image: awm/trust-reg:${IMAGE_TAG:-local}
+    env_file: .env.docker
+    environment:
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  migrator:
+    build:
+      context: .
+      target: migrator
+    image: awm/trust-reg-migrator:${IMAGE_TAG:-local}
+    env_file: .env.docker
+    profiles: ["tools"]
+    # `docker compose run --rm migrator` runs `migrate deploy`; override the command for anything else:
+    #   docker compose run --rm migrator migrate status
+
+  # Optional: call the daily job from inside the stack when the host has no scheduler (e.g. not on Vercel).
+  cron:
+    image: curlimages/curl:8.10.1
+    profiles: ["jobs"]
+    env_file: .env.docker
+    depends_on:
+      app:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          now=$(date -u +%H:%M)
+          if [ "$now" = "${DAILY_JOB_UTC:-06:00}" ]; then
+            curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/jobs/daily || echo "daily job failed"
+            sleep 61
+          fi
+          sleep 30
+        done
+    restart: unless-stopped

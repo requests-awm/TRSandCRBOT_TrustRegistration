@@ -1,0 +1,10 @@
+# Stale dependency tree left over from the archived skeleton (delete by hand)
+app/node_modules/
+
+# Local Claude Code settings
+.claude/
+
+# Build caches
+*.tsbuildinfo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,324 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["trust_reg"]
+}
+
+// ============ ENUMS ============
+
+enum Authority {
+  trs
+  crbot
+
+  @@schema("trust_reg")
+  @@map("authority")
+}
+
+enum RequirementDecisionStatus {
+  required
+  not_required
+  under_review
+
+  @@schema("trust_reg")
+  @@map("requirement_status_decision")
+}
+
+enum RequirementStatus {
+  requirement_review
+  not_started
+  awaiting_information
+  ready_to_register
+  registration_in_progress
+  submitted
+  authority_query
+  completed_pending_evidence
+  evidence_rejected
+  verified_completed
+  not_required
+  cancelled
+
+  @@schema("trust_reg")
+  @@map("requirement_status")
+}
+
+enum OverallStatus {
+  requirement_review
+  overdue
+  blocked
+  registration_in_progress
+  ready_for_provider
+  handed_back_to_wm
+  closed
+
+  @@schema("trust_reg")
+  @@map("overall_status")
+}
+
+enum DocumentType {
+  trs_proof_of_registration
+  trs_urn_confirmation
+  trs_utr_confirmation
+  crbot_registration_confirmation
+  crbot_trust_register_number
+  authority_correspondence
+  supporting_document
+  provider_submission_copy
+
+  @@schema("trust_reg")
+  @@map("document_type")
+}
+
+enum VerificationStatus {
+  pending
+  verified
+  rejected
+
+  @@schema("trust_reg")
+  @@map("verification_status")
+}
+
+enum MalwareScanStatus {
+  pending
+  clean
+  infected
+  failed
+
+  @@schema("trust_reg")
+  @@map("malware_scan_status")
+}
+
+enum EventType {
+  case_created
+  requirement_added
+  owner_assigned
+  information_requested
+  document_uploaded
+  submitted_to_authority
+  authority_query_received
+  registration_completed
+  evidence_verified
+  wm_notified
+  activation_unblocked
+  case_reopened
+
+  @@schema("trust_reg")
+  @@map("event_type")
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  sent
+  failed
+
+  @@schema("trust_reg")
+  @@map("notification_delivery_status")
+}
+
+enum UserRole {
+  wm_requester
+  aep_processor
+  aep_reviewer
+  compliance_reviewer
+  administrator
+  auditor
+
+  @@schema("trust_reg")
+  @@map("user_role")
+}
+
+enum BusinessPriority {
+  standard
+  urgent
+  critical
+
+  @@schema("trust_reg")
+  @@map("business_priority")
+}
+
+// ============ TABLES ============
+
+model TrustCase {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseReference               String    @unique @map("case_reference")
+  insightlyId                 String    @map("insightly_id")
+  clientDisplayName           String    @map("client_display_name")
+  trustName                   String    @map("trust_name")
+  providerName                String    @map("provider_name")
+  providerCountry             String    @map("provider_country")
+  trustType                   String    @map("trust_type")
+  trustCreationDate           DateTime? @map("trust_creation_date") @db.Date
+  requestingWmUserId          String    @map("requesting_wm_user_id") @db.Uuid
+  requestingWmTeam            String    @map("requesting_wm_team")
+  assignedAepUserId           String?   @map("assigned_aep_user_id") @db.Uuid
+  businessPriority            BusinessPriority @default(standard) @map("business_priority")
+  overallStatus               OverallStatus @default(requirement_review) @map("overall_status")
+  activationBlocked           Boolean   @default(true) @map("activation_blocked")
+  targetProviderSubmissionDate DateTime? @map("target_provider_submission_date") @db.Date
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  closedAt                    DateTime? @map("closed_at") @db.Timestamptz
+  isDeleted                   Boolean   @default(false) @map("is_deleted")
+  deletedAt                   DateTime? @map("deleted_at") @db.Timestamptz
+  deletionReason              String?   @map("deletion_reason")
+
+  requirements  RegistrationRequirement[]
+  events        RegistrationEvent[]
+  notifications Notification[]
+
+  @@map("trust_cases")
+  @@schema("trust_reg")
+}
+
+model RegistrationRequirement {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trustCaseId            String    @map("trust_case_id") @db.Uuid
+  authority              Authority
+  requirementStatus      RequirementDecisionStatus @default(under_review) @map("requirement_status")
+  requirementReason      String?   @map("requirement_reason")
+  requirementDecidedBy   String?   @map("requirement_decided_by") @db.Uuid
+  requirementDecidedAt   DateTime? @map("requirement_decided_at") @db.Timestamptz
+  complianceRuleId       String?   @map("compliance_rule_id") @db.Uuid
+  registrationDeadline   DateTime? @map("registration_deadline") @db.Date
+  internalTargetDate     DateTime? @map("internal_target_date") @db.Date
+  status                 RequirementStatus @default(requirement_review)
+  assignedTo             String?   @map("assigned_to") @db.Uuid
+  submittedAt            DateTime? @map("submitted_at") @db.Timestamptz
+  completedAt            DateTime? @map("completed_at") @db.Timestamptz
+  verifiedAt             DateTime? @map("verified_at") @db.Timestamptz
+  verifiedBy             String?   @map("verified_by") @db.Uuid
+  authorityReference     String?   @map("authority_reference")
+  completionNotes        String?   @map("completion_notes")
+  checklist              Json?     @default("[]")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  trustCase       TrustCase        @relation(fields: [trustCaseId], references: [id], onDelete: Restrict)
+  complianceRule  ComplianceRule?  @relation(fields: [complianceRuleId], references: [id], onDelete: Restrict)
+  documents       RegistrationDocument[]
+  events          RegistrationEvent[]
+  notifications   Notification[]
+
+  @@unique([trustCaseId, authority])
+  @@map("trust_registration_requirements")
+  @@schema("trust_reg")
+}
+
+model RegistrationDocument {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registrationRequirementId String @map("registration_requirement_id") @db.Uuid
+  documentType           DocumentType @map("document_type")
+  fileName               String    @map("file_name")
+  storageKey             String    @map("storage_key")
+  mimeType               String    @map("mime_type")
+  fileSize               Int       @map("file_size")
+  documentVersion        Int       @default(1) @map("document_version")
+  uploadedBy             String    @map("uploaded_by") @db.Uuid
+  uploadedAt             DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz
+  isCurrent              Boolean   @default(true) @map("is_current")
+  verificationStatus     VerificationStatus @default(pending) @map("verification_status")
+  verifiedBy             String?   @map("verified_by") @db.Uuid
+  verifiedAt             DateTime? @map("verified_at") @db.Timestamptz
+  rejectionReason        String?   @map("rejection_reason")
+  malwareScanStatus      MalwareScanStatus @default(pending) @map("malware_scan_status")
+  fileHash               String?   @map("file_hash")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  requirement RegistrationRequirement @relation(fields: [registrationRequirementId], references: [id], onDelete: Restrict)
+
+  @@map("registration_documents")
+  @@schema("trust_reg")
+}
+
+model RegistrationEvent {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trustCaseId               String   @map("trust_case_id") @db.Uuid
+  registrationRequirementId String?  @map("registration_requirement_id") @db.Uuid
+  eventType                 EventType @map("event_type")
+  previousStatus            String?  @map("previous_status")
+  newStatus                 String?  @map("new_status")
+  comment                   String?
+  metadataJson              Json?    @map("metadata_json")
+  performedBy               String   @map("performed_by") @db.Uuid
+  performedAt               DateTime @default(now()) @map("performed_at") @db.Timestamptz
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  trustCase   TrustCase                 @relation(fields: [trustCaseId], references: [id], onDelete: Restrict)
+  requirement RegistrationRequirement?  @relation(fields: [registrationRequirementId], references: [id], onDelete: Restrict)
+
+  @@map("registration_events")
+  @@schema("trust_reg")
+}
+
+model Notification {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trustCaseId               String   @map("trust_case_id") @db.Uuid
+  registrationRequirementId String?  @map("registration_requirement_id") @db.Uuid
+  notificationType          String   @map("notification_type")
+  recipient                 String
+  scheduledFor              DateTime? @map("scheduled_for") @db.Timestamptz
+  sentAt                    DateTime? @map("sent_at") @db.Timestamptz
+  deliveryStatus            NotificationDeliveryStatus @default(pending) @map("delivery_status")
+  providerMessageId         String?  @map("provider_message_id")
+  errorMessage              String?  @map("error_message")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  trustCase   TrustCase                @relation(fields: [trustCaseId], references: [id], onDelete: Restrict)
+  requirement RegistrationRequirement? @relation(fields: [registrationRequirementId], references: [id], onDelete: Restrict)
+
+  @@map("notifications")
+  @@schema("trust_reg")
+}
+
+model ComplianceRule {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authority             Authority
+  ruleName              String   @map("rule_name")
+  effectiveFrom         DateTime @map("effective_from") @db.Date
+  effectiveTo           DateTime? @map("effective_to") @db.Date
+  deadlineDays          Int      @map("deadline_days")
+  ruleConfigurationJson Json?    @map("rule_configuration_json")
+  approvedBy            String   @map("approved_by") @db.Uuid
+  approvedAt            DateTime @map("approved_at") @db.Timestamptz
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  requirements RegistrationRequirement[]
+
+  @@map("compliance_rules")
+  @@schema("trust_reg")
+}
+
+model CaseReferenceCounter {
+  year    Int  @map("year") @db.Integer
+  nextSeq Int  @default(1) @map("next_seq") @db.Integer
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@id([year])
+  @@map("case_reference_counters")
+  @@schema("trust_reg")
+}
+
+model Profile {
+  id        String   @id @db.Uuid
+  role      UserRole
+  fullName  String?  @map("full_name")
+  wmTeam    String?  @map("wm_team")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("profiles")
+  @@schema("trust_reg")
+}
