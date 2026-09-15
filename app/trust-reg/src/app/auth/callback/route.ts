@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { publicOrigin } from "@/server/http/origin";
 
 // OAuth return leg. Supabase redirects here with ?code=...; we exchange it for a session cookie,
 // check the person has a trust_reg.profiles row (their role), and send them on.
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const nextParam = req.nextUrl.searchParams.get("next") ?? "/dashboard";
   const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
-  const origin = req.nextUrl.origin;
+  const origin = publicOrigin(req);
 
   if (!code) {
     const err = req.nextUrl.searchParams.get("error_description") ?? "Sign-in was cancelled";
