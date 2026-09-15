@@ -49,6 +49,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <>
               <div className="font-medium text-slate-900">{user.fullName ?? user.email}</div>
               <div>{ROLE_LABEL[user.role]}{user.wmTeam ? ` · ${user.wmTeam}` : ""}</div>
+              {api.mode === "http" && !canSwitchRole && (
+                <form method="post" action="/auth/signout" className="mt-2">
+                  <button type="submit" className="text-[11px] text-slate-500 underline-offset-2 hover:underline">
+                    Sign out
+                  </button>
+                </form>
+              )}
             </>
           ) : (
             <Link href="/login" className="font-medium text-slate-900 underline">
