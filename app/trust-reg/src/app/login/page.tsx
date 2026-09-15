@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
+import { publicConfig } from "@/lib/publicConfig";
 
 // Supabase email/password sign-in. Inactive in placeholder mode (NEXT_PUBLIC_DATA_SOURCE=mock)
 // because no Supabase project is configured yet. The proxy sends anonymous visitors here with ?next=.
@@ -23,15 +24,16 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const mockMode = process.env.NEXT_PUBLIC_DATA_SOURCE !== "http";
+  const cfg = publicConfig();
+  const configured = Boolean(cfg.supabaseUrl && cfg.supabaseAnonKey);
+  const mockMode = cfg.dataSource !== "http";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+      const supabase = createBrowserClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       router.push(nextPath.startsWith("/") ? nextPath : "/dashboard");

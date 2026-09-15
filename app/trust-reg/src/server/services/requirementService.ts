@@ -9,7 +9,8 @@ import type {
 } from "@/server/domain/types";
 import { recordEvent } from "./eventService";
 import { getDocuments } from "./documentService";
-import { notifyWmReadyForProvider } from "./notificationService";
+import { notifyWmReadyForProvider, notifyWmStatusChanged, wmNotifyPolicy } from "./notificationService";
+import { REQUIREMENT_STATUS_LABEL } from "@/lib/labels";
 import { AuthUser } from "@/server/auth/roles";
 import { deriveOverallStatus, reconcileOverallStatus, type RequirementSnapshot } from "@/server/workflow/deriveOverallStatus";
 import { deriveActivationBlocked } from "@/server/workflow/deriveActivationBlocked";
@@ -237,6 +238,27 @@ export async function transitionRequirement(input: TransitionRequirementInput, a
   });
 
   await recomputeCaseDerivedState(requirement.trust_case_id, actor);
+
+  if (wmNotifyPolicy() === "all") {
+    const { data: tc } = await client.from("trust_cases").select("*").eq("id", requirement.trust_case_id).single();
+    if (tc) {
+      const trustCase = tc as TrustCaseRow;
+      await notifyWmStatusChanged({
+        trustCaseId: trustCase.id,
+        caseReference: trustCase.case_reference,
+        trustName: trustCase.trust_name,
+        providerName: trustCase.provider_name,
+        requestingWmUserId: trustCase.requesting_wm_user_id,
+        actorId: actor.id,
+        registrationRequirementId: requirement.id,
+        authority: requirement.authority.toUpperCase(),
+        previousStatus: REQUIREMENT_STATUS_LABEL[requirement.status],
+        newStatus: REQUIREMENT_STATUS_LABEL[result.newStatus],
+        comment: input.payload.comment,
+      }).catch((err) => console.error("status_changed notification failed:", err));
+    }
+  }
+
   return updated as RequirementRow;
 }
 

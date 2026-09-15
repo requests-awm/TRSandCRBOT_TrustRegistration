@@ -10,6 +10,7 @@ import { simpleCaseStatus } from "@/server/workflow/deriveSimpleStatus";
 import { ActivationBadge, Alert, Card, DL, OverallStatusBadge, SimpleStatusBadge, Spinner } from "@/components/ui";
 import { RequirementPanel } from "@/components/case/RequirementPanel";
 import { ConfirmationPanel } from "@/components/case/ConfirmationPanel";
+import { OwnerCard } from "@/components/case/OwnerCard";
 import { Timeline } from "@/components/case/Timeline";
 
 export default function CaseDetailPage() {
@@ -69,9 +70,14 @@ export default function CaseDetailPage() {
           <OverallStatusBadge status={trustCase.overall_status} />
           <ActivationBadge blocked={trustCase.activation_blocked} />
         </div>
-        <p className="text-sm text-slate-600">
-          {trustCase.client_display_name} · {trustCase.provider_name} ({trustCase.provider_country})
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-600">
+            {trustCase.client_display_name} · {trustCase.provider_name} ({trustCase.provider_country})
+          </p>
+          <Link href={`/cases/${trustCase.id}/audit-pack`} className="text-xs font-medium text-slate-700 underline-offset-2 hover:underline">
+            Audit pack (print / PDF)
+          </Link>
+        </div>
       </div>
 
       {trustCase.overall_status === "overdue" && <Alert tone="error">A required registration has passed its statutory deadline.</Alert>}
@@ -86,6 +92,7 @@ export default function CaseDetailPage() {
           <RequirementPanel caseId={trustCase.id} authority="crbot" requirement={req("crbot")} onChanged={load} />
         </div>
         <div className="space-y-6">
+          <OwnerCard trustCase={trustCase} onChanged={load} />
           <Card title="Request details">
             <DL
               items={[

@@ -11,6 +11,7 @@ import { Select } from "./ui";
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/cases/new", label: "New request", roles: ["wm_requester", "administrator"] as UserRole[] },
+  { href: "/reports", label: "Reports" },
   { href: "/audit", label: "Audit log" },
 ];
 
@@ -20,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 md:flex-row">
-      <aside className="flex w-full flex-col border-b border-slate-200 bg-white md:min-h-screen md:w-60 md:border-b-0 md:border-r">
+      <aside className="flex w-full flex-col border-b border-slate-200 bg-white print:hidden md:min-h-screen md:w-60 md:border-b-0 md:border-r">
         <div className="px-5 py-4">
           <Link href="/dashboard" className="block">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">AWM</div>

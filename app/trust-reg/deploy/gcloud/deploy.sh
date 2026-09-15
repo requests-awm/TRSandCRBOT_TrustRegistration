@@ -60,8 +60,10 @@ upsert_secret trust-reg-cron-secret "$CRON_SECRET"
 upsert_secret trust-reg-resend-api-key "${RESEND_API_KEY:-unset}"
 
 echo "== cloud build + deploy (this takes a few minutes)"
+# Build context is the repository root, where the Dockerfile lives (app/trust-reg is copied from there).
 APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-gcloud builds submit "$APP_DIR" --config="$APP_DIR/deploy/gcloud/cloudbuild.yaml" \
+REPO_ROOT="$(cd "$APP_DIR/../.." && pwd)"
+gcloud builds submit "$REPO_ROOT" --config="$APP_DIR/deploy/gcloud/cloudbuild.yaml" \
   --substitutions="_REGION=$REGION,_SERVICE=$SERVICE,_REPO=$REPO,_SUPABASE_URL=$SUPABASE_URL,_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY,SHORT_SHA=$(date -u +%Y%m%d%H%M%S)"
 
 URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"

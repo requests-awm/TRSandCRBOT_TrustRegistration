@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { UserRole } from "@/server/domain/types";
 import { getApi, type SessionUser, type TrustRegApi } from "@/lib/api";
+import { publicConfig } from "@/lib/publicConfig";
 import { readDevRole, writeDevRole } from "./devRole";
 
 interface SessionContextValue {
@@ -22,7 +23,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [, setRoleTick] = useState(0);
 
-  const canSwitchRole = api.mode === "mock" || process.env.NEXT_PUBLIC_AUTH_MODE === "dev";
+  const canSwitchRole = api.mode === "mock" || publicConfig().authMode === "dev";
 
   const refresh = useCallback(
     () =>

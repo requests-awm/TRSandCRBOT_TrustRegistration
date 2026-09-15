@@ -7,7 +7,14 @@ export type NotificationTemplate =
   | "authority_query"
   | "evidence_rejected"
   | "evidence_verified"
-  | "deadline_approaching";
+  | "deadline_approaching"
+  | "status_changed"
+  | "case_stalled";
+
+// "When should WM be told something": milestones (gate opened, hand-back, stuck) or every status
+// change. Business decision pending, so it is configuration: WM_NOTIFY_ON=milestones|all.
+export type WmNotifyPolicy = "milestones" | "all";
+export const wmNotifyPolicy = (): WmNotifyPolicy => (process.env.WM_NOTIFY_ON === "all" ? "all" : "milestones");
 
 export interface NotificationPayload {
   trustCaseId: string;
@@ -87,6 +94,17 @@ export function renderNotification(template: NotificationTemplate, p: Record<str
       return wrap(`${trust}: ${String(p.authority ?? "")} registration deadline in ${String(p.daysRemaining ?? "?")} days`, [
         `The statutory registration deadline for ${trust} (${ref}) is ${String(p.deadline ?? "")}.`,
         `Current status: ${String(p.status ?? "")}.`,
+      ]);
+    case "status_changed":
+      return wrap(`${trust}: ${String(p.authority ?? "")} registration is now ${String(p.newStatus ?? "")}`, [
+        `The ${String(p.authority ?? "")} registration for ${trust} (${ref}) moved from "${String(p.previousStatus ?? "")}" to "${String(p.newStatus ?? "")}".`,
+        p.comment ? `Note: ${String(p.comment)}` : "",
+      ].filter(Boolean));
+    case "case_stalled":
+      return wrap(`${trust}: no activity for ${String(p.days ?? "?")} days`, [
+        `${trust} (${ref}) has had no activity since ${String(p.lastActivity ?? "")}.`,
+        `Current status: ${String(p.status ?? "")}.`,
+        "Please chase the outstanding step or record what is blocking it on the case.",
       ]);
   }
 }
@@ -306,6 +324,60 @@ export async function notifyWmHandedBack(
   });
 
   return result;
+}
+
+// Only used when WM_NOTIFY_ON=all: every requirement status change is mailed to the requester.
+export async function notifyWmStatusChanged(
+  ctx: WmNotificationContext & { registrationRequirementId: string; authority: string; previousStatus: string; newStatus: string; comment?: string }
+): Promise<NotificationSendResult> {
+  const recipient = await wmRecipient(ctx);
+  const result = await sendNotification({
+    trustCaseId: ctx.trustCaseId,
+    registrationRequirementId: ctx.registrationRequirementId,
+    recipient,
+    templateType: "status_changed",
+    payload: {
+      caseReference: ctx.caseReference,
+      trustName: ctx.trustName,
+      authority: ctx.authority,
+      previousStatus: ctx.previousStatus,
+      newStatus: ctx.newStatus,
+      comment: ctx.comment,
+    },
+  });
+  await recordEvent({
+    trustCaseId: ctx.trustCaseId,
+    registrationRequirementId: ctx.registrationRequirementId,
+    eventType: "wm_notified",
+    comment: result.success ? `WM team notified: ${ctx.authority} now ${ctx.newStatus}` : `WM notification failed: ${result.error ?? "unknown error"}`,
+    performedBy: ctx.actorId,
+    metadataJson: { recipient, notificationType: "status_changed", success: result.success },
+  });
+  return result;
+}
+
+// Weekly nudge to the AEP owner (or team mailbox) for open cases with no activity.
+export async function notifyCaseStalled(input: {
+  trustCaseId: string;
+  caseReference: string;
+  trustName: string;
+  status: string;
+  lastActivity: string;
+  days: number;
+  recipient: string;
+}): Promise<NotificationSendResult> {
+  return sendNotification({
+    trustCaseId: input.trustCaseId,
+    recipient: input.recipient,
+    templateType: "case_stalled",
+    payload: {
+      caseReference: input.caseReference,
+      trustName: input.trustName,
+      status: input.status,
+      lastActivity: input.lastActivity,
+      days: input.days,
+    },
+  });
 }
 
 export async function notifyDeadlineApproaching(input: {

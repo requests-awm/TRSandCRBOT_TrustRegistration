@@ -1,0 +1,22 @@
+# Build context is the repository root (see Dockerfile). Only app/trust-reg is copied into the image.
+.git
+.claude
+*.md
+!app/trust-reg/README.md
+
+app/trust-reg/node_modules
+app/trust-reg/.next
+app/trust-reg/out
+app/trust-reg/coverage
+app/trust-reg/*.tsbuildinfo
+app/trust-reg/npm-debug.log*
+
+# Never bake secrets or local data into a layer. Runtime config comes from the platform / --env-file.
+app/trust-reg/.env
+app/trust-reg/.env.*
+!app/trust-reg/.env.example
+app/trust-reg/.local-stack
+app/trust-reg/supabase/.temp
+app/trust-reg/.vercel
+app/trust-reg/.claude
+app/trust-reg/deploy

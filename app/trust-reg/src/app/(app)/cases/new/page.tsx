@@ -7,9 +7,12 @@ import { ApiError, type CreateCaseInput } from "@/lib/api";
 import { BUSINESS_PRIORITIES } from "@/server/domain/types";
 import { PRIORITY_LABEL } from "@/lib/labels";
 import { Alert, Button, Card, Field, Input, Select } from "@/components/ui";
+import { ClientLookup } from "@/components/case/ClientLookup";
 
-// PLACEHOLDER lists. Replace with values from public.insightly_contacts / provider reference data.
+// Reference lists pending confirmation with WM ("which providers are involved today"). Provider
+// names are free text with suggestions so a new provider never blocks a request.
 const PROVIDER_COUNTRIES = ["Ireland", "Isle of Man", "Guernsey", "Jersey", "Luxembourg", "United Kingdom", "Other"];
+const PROVIDER_SUGGESTIONS = ["Utmost International", "Prudential International", "Quilter International", "Canada Life International", "RL360", "Standard Life International", "Aviva", "Zurich International"];
 const TRUST_TYPES = ["Discretionary trust", "Interest in possession trust", "Loan trust", "Gift trust", "Pilot trust", "Charitable trust", "Bare trust", "Other"];
 
 const empty: CreateCaseInput = {
@@ -81,11 +84,16 @@ export default function NewCasePage() {
       <form onSubmit={submit} className="space-y-6">
         <Card title="Client and trust">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Insightly ID" required error={errors.insightlyId} hint="Client record in Insightly">
-              <Input value={form.insightlyId} onChange={set("insightlyId")} placeholder="INS-123456" />
+            <Field label="Client" required error={errors.clientDisplayName} hint="Search the client master by surname or Insightly ID; pick a result to fill both fields">
+              <ClientLookup
+                value={form.clientDisplayName}
+                onChange={(v) => setForm((f) => ({ ...f, clientDisplayName: v }))}
+                onSelect={(c) => setForm((f) => ({ ...f, clientDisplayName: c.displayName, insightlyId: c.insightlyId }))}
+                placeholder="Surname, First name"
+              />
             </Field>
-            <Field label="Client display name" required error={errors.clientDisplayName}>
-              <Input value={form.clientDisplayName} onChange={set("clientDisplayName")} placeholder="Surname, First name" />
+            <Field label="Insightly ID" required error={errors.insightlyId} hint="Filled from the lookup, or enter manually">
+              <Input value={form.insightlyId} onChange={set("insightlyId")} placeholder="123456" />
             </Field>
             <Field label="Trust name" required error={errors.trustName}>
               <Input value={form.trustName} onChange={set("trustName")} />
@@ -106,7 +114,12 @@ export default function NewCasePage() {
         <Card title="Provider">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Provider name" required error={errors.providerName}>
-              <Input value={form.providerName} onChange={set("providerName")} placeholder="e.g. Utmost International" />
+              <Input value={form.providerName} onChange={set("providerName")} placeholder="e.g. Utmost International" list="provider-suggestions" />
+              <datalist id="provider-suggestions">
+                {PROVIDER_SUGGESTIONS.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
             </Field>
             <Field label="Provider country" required>
               <Select value={form.providerCountry} onChange={set("providerCountry")}>

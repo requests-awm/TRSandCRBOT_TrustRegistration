@@ -1,16 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { requireEnv } from "@/server/env";
 
-// Service-role client scoped to trust_reg schema only.
-// Used on the server-side for all mutating operations and privileged reads.
-// NEVER expose this key to the client/browser.
+// Service-role client scoped to the trust_reg schema. Server only: all mutations and privileged reads.
+// NEVER expose this key to the browser. Values are read at request time so one image serves every environment.
 export function createServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      db: {
-        schema: "trust_reg",
-      },
-    }
-  );
+  return createClient(requireEnv("NEXT_PUBLIC_SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+    db: {
+      schema: "trust_reg",
+    },
+  });
 }

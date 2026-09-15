@@ -5,8 +5,9 @@
 #   docker compose --env-file .env.local run --rm migrator   # prisma migrate deploy (needs DATABASE_URL)
 #   docker compose --env-file .env.local --profile jobs up -d cron   # optional in-stack daily scheduler
 #
-# --env-file makes the NEXT_PUBLIC_* values available for the build args below; env_file (per service)
-# injects the same file at runtime. The npm "docker:*" scripts pass the flag for you.
+# All configuration, including NEXT_PUBLIC_*, is read at runtime from env_file, so the image needs no
+# build args and can be promoted between environments. The npm "docker:*" scripts pass --env-file for you.
+# The Dockerfile lives at the repository root (two levels up) so Cloud Run's repository trigger finds it.
 #
 # The database, auth and storage are the shared AWM Supabase project (or `npm run stack` locally);
 # they are not part of this compose file.
@@ -14,13 +15,9 @@
 services:
   app:
     build:
-      context: .
+      context: ../..
+      dockerfile: Dockerfile
       target: runner
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.local}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set in .env.local}
-        NEXT_PUBLIC_DATA_SOURCE: ${NEXT_PUBLIC_DATA_SOURCE:-http}
-        NEXT_PUBLIC_AUTH_MODE: ${NEXT_PUBLIC_AUTH_MODE:-supabase}
     image: awm/trust-reg:${IMAGE_TAG:-local}
     env_file: .env.local
     environment:
@@ -44,7 +41,8 @@ services:
 
   migrator:
     build:
-      context: .
+      context: ../..
+      dockerfile: Dockerfile
       target: migrator
     image: awm/trust-reg-migrator:${IMAGE_TAG:-local}
     env_file: .env.local

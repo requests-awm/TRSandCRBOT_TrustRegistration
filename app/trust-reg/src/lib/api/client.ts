@@ -97,11 +97,16 @@ export interface ListEventsFilter {
 }
 
 export type { AuditEventRow };
+export type { ClientSearchResponse, ClientSearchResult, ProfileSummary } from "@/server/services/directoryService";
+import type { ClientSearchResponse, ProfileSummary } from "@/server/services/directoryService";
 
 // One interface, two implementations: mockClient (in-browser, no backend) and httpClient (the /api routes).
 export interface TrustRegApi {
   readonly mode: "mock" | "http";
   me(): Promise<SessionUser | null>;
+  searchClients(q: string): Promise<ClientSearchResponse>;
+  listProfiles(roles?: UserRole[]): Promise<ProfileSummary[]>;
+  assignOwner(caseId: string, aepUserId: string | null): Promise<TrustCaseRow>;
   listCases(filter?: ListCasesFilter): Promise<TrustCaseWithRequirements[]>;
   getCase(id: string): Promise<TrustCaseWithRequirements>;
   createCase(input: CreateCaseInput): Promise<TrustCaseRow>;

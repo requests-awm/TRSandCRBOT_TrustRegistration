@@ -1,0 +1,22 @@
+# Upload only what the root Dockerfile needs. `gcloud builds submit` runs from the repository root.
+.gcloudignore
+.git
+.claude
+*.md
+!app/trust-reg/README.md
+
+app/trust-reg/node_modules
+app/trust-reg/.next
+app/trust-reg/out
+app/trust-reg/coverage
+app/trust-reg/*.tsbuildinfo
+app/trust-reg/npm-debug.log*
+
+# Never upload secrets or local data
+app/trust-reg/.env
+app/trust-reg/.env.*
+!app/trust-reg/.env.example
+app/trust-reg/.local-stack
+app/trust-reg/supabase/.temp
+app/trust-reg/.vercel
+app/trust-reg/.claude

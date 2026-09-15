@@ -3,6 +3,25 @@
 **Updated:** 2026-09-14
 **Live code:** `app/trust-reg/` (Next.js 16, App Router, Tailwind v4, supabase-js, Prisma 7 for migrations only)
 
+## Cloud Run continuous deployment unblocked (2026-09-15)
+
+The console-created trigger (service `trsandcrbot-trustregistration`, `europe-west1`, project `myeventerimporter`)
+was showing Cloud Run's placeholder page because no build had succeeded. Two causes, both fixed in the repo:
+
+1. **Dockerfile location.** The trigger looks for `/Dockerfile` at the repository root; ours was in `app/trust-reg/`.
+   The Dockerfile (plus `.dockerignore` and `.gcloudignore`) now lives at the root and copies `app/trust-reg` in.
+   `docker-compose.yml`, `deploy.sh` and `cloudbuild.yaml` build from the root as well.
+2. **Build-time configuration.** Next.js bakes `NEXT_PUBLIC_*` into both bundles, and Turbopack even constant-folds
+   aliased `process.env` lookups. A repository trigger passes no build args, so the image would have shipped with an
+   empty Supabase URL. Configuration is now read at request time: the root layout injects
+   `window.__TRUST_REG_CONFIG__` (`src/lib/publicConfig.ts`) and server code reads through `globalThis.process`
+   (`src/server/env.ts`). Verified: one production build served `dataSource=mock` and `http` depending only on the
+   run-time environment, and no bundle file contains the Supabase project reference.
+
+New: `app/trust-reg/deploy/gcloud/configure-service.sh` shapes the existing service (secrets, env vars, port,
+scheduler) from `.env.local`. Remaining manual steps, in `deploy/gcloud/README.md` Path A: `gcloud auth login`, fill
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, run the script, commit and push.
+
 ## LIVE on the shared AWM Supabase project (2026-09-14, afternoon)
 
 Tumisang applied the migrations to the shared AWM Supabase project. `trust_reg` was added to PostgREST's exposed
@@ -20,6 +39,26 @@ Still to do on the project: real users in `auth.users` + `trust_reg.profiles`, s
 README. Blocked only on `gcloud auth login` (both accounts on this laptop have expired tokens, which needs a browser),
 the Supabase publishable/anon key in `.env.local`, and a Resend API key. Email provider chosen: Resend. Two test cases named "Integration Trust <timestamp>" remain in
 the live table; soft-delete them via the API or the UI when no longer wanted.
+
+## Built ahead of the requirements session (2026-09-14, evening)
+
+Everything the planned questions do not depend on, so the meeting reviews a fuller prototype. Answers that are still
+pending are configuration, not code (see `app/trust-reg/docs/REQUIREMENTS_SESSION.md`, one row per question).
+
+- **Board view** — Asana-style columns per workflow stage with cards (priority, TRS/CRBOT chips, progress dots,
+  owner avatar, target date, stalled badge); List/Board tabs remembered per browser.
+- **Owner and chasing** — owner picker + "Assign to me" on the case (`/api/profiles`), names on cards and list;
+  "Stalled" tile/filter after `STALE_AFTER_DAYS` (default 14) without activity; weekly stalled nudge to the owner
+  or `AEP_TEAM_EMAIL` from the daily job.
+- **WM notification policy** — `WM_NOTIFY_ON=milestones` (default) or `all` (every registration status change),
+  new `status_changed` and `case_stalled` templates.
+- **Client lookup** — request form searches `public.insightly_contacts` (AWM client master) via
+  `/api/clients/search` and fills Insightly ID + name; manual entry still works when the lookup is unavailable.
+  Provider name has suggestions.
+- **Reports** (`/reports`) — volume by month (raised / verified / closed), median days to verified / hand-back /
+  close, open cases by age bucket, jurisdiction mix, by provider, where cases sit, needs-attention list, CSV export.
+- **Audit pack** (`/cases/:id/audit-pack`) — printable evidence pack: request, decisions, references, checklist,
+  every document with SHA-256 / version / uploader / verifier, full append-only trail, retention statement.
 
 ## Operational proof, local (2026-09-14, morning)
 

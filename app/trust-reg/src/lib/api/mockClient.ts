@@ -465,12 +465,54 @@ function requireRole(user: SessionUser, roles: UserRole[]) {
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
+// Stand-in for public.insightly_contacts: the seeded clients plus a few extra names.
+const MOCK_CLIENTS = [
+  { insightlyId: "100234", displayName: "Whitcombe, Eleanor", adviser: "J. Patel", email: "eleanor.whitcombe@example.com" },
+  { insightlyId: "100311", displayName: "Okafor, Daniel", adviser: "S. Brooks", email: "d.okafor@example.com" },
+  { insightlyId: "100377", displayName: "Marchetti, Sofia", adviser: "J. Patel", email: "sofia.m@example.com" },
+  { insightlyId: "100402", displayName: "Hargreaves, Thomas", adviser: "R. Lewis", email: "t.hargreaves@example.com" },
+  { insightlyId: "100455", displayName: "Nakamura, Aiko", adviser: "S. Brooks", email: "aiko.n@example.com" },
+];
+
 export const mockClient: TrustRegApi = {
   mode: "mock",
 
   async me() {
     await delay(20);
     return currentUser();
+  },
+
+  async searchClients(q) {
+    await delay(80);
+    const term = q.trim().toLowerCase();
+    if (term.length < 2) return { available: true, results: [] };
+    const seeded = db().cases.map((c) => ({ insightlyId: c.insightly_id, displayName: c.client_display_name, adviser: null, email: null }));
+    const all = [...MOCK_CLIENTS, ...seeded].filter((c, i, arr) => arr.findIndex((x) => x.insightlyId === c.insightlyId) === i);
+    return {
+      available: true,
+      results: all.filter((c) => c.displayName.toLowerCase().includes(term) || c.insightlyId.includes(term)).slice(0, 10),
+    };
+  },
+
+  async listProfiles(roles) {
+    await delay(40);
+    return (Object.keys(U) as UserRole[])
+      .filter((r) => !roles || roles.includes(r))
+      .map((r) => ({ id: U[r], fullName: `Dev ${ROLE_LABEL[r]}`, role: r, wmTeam: r === "wm_requester" ? "WM Team A" : null }));
+  },
+
+  async assignOwner(caseId, aepUserId) {
+    await delay();
+    const user = currentUser();
+    requireRole(user, ["aep_processor", "aep_reviewer", "administrator"]);
+    const d = db();
+    const c = d.cases.find((x) => x.id === caseId && !x.is_deleted);
+    if (!c) throw new ApiError(404, "Trust case not found");
+    c.assigned_aep_user_id = aepUserId;
+    c.updated_at = nowIso();
+    d.events.push(mkEvent(caseId, null, "owner_assigned", user.id, `AEP owner assigned by ${user.email}`, null, null, nowIso(), { aepUserId }));
+    commit();
+    return c;
   },
 
   async listCases(filter = {}) {

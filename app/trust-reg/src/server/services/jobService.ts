@@ -1,8 +1,9 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import type { RequirementRow, TrustCaseRow } from "@/server/domain/types";
 import { recomputeCaseDerivedState } from "./requirementService";
-import { notifyDeadlineApproaching, resolveUserEmail, wasNotifiedRecently } from "./notificationService";
+import { notifyCaseStalled, notifyDeadlineApproaching, resolveUserEmail, wasNotifiedRecently } from "./notificationService";
 import type { AuthUser } from "@/server/auth/roles";
+import { OVERALL_STATUS_LABEL } from "@/lib/labels";
 
 // Runs once a day (see /api/jobs/daily). Two jobs:
 // 1. Recompute every open case so a passed deadline flips the case to "overdue" without anyone
@@ -28,9 +29,14 @@ export interface DailyJobReport {
   remindersSent: number;
   remindersSkipped: number;
   reminderErrors: string[];
+  staleAfterDays: number;
+  stalledNudgesSent: number;
+  stalledSkipped: number;
+  stalledErrors: string[];
 }
 
 export async function runDailyJobs(now: Date = new Date()): Promise<DailyJobReport> {
+  const staleAfterDays = Math.max(1, Number(process.env.STALE_AFTER_DAYS ?? 14) || 14);
   const report: DailyJobReport = {
     ranAt: now.toISOString(),
     casesRecomputed: 0,
@@ -38,6 +44,10 @@ export async function runDailyJobs(now: Date = new Date()): Promise<DailyJobRepo
     remindersSent: 0,
     remindersSkipped: 0,
     reminderErrors: [],
+    staleAfterDays,
+    stalledNudgesSent: 0,
+    stalledSkipped: 0,
+    stalledErrors: [],
   };
   const client = createServiceClient();
 
@@ -103,6 +113,36 @@ export async function runDailyJobs(now: Date = new Date()): Promise<DailyJobRepo
       else report.reminderErrors.push(`${tc.case_reference} ${r.authority}: ${result.error}`);
     } catch (err) {
       report.reminderErrors.push(`${tc.case_reference} ${r.authority}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // 3. Stalled cases: open, nothing changed for STALE_AFTER_DAYS. Nudge the owner (or team mailbox) at most weekly.
+  const staleBefore = new Date(now.getTime() - staleAfterDays * 86400000);
+  for (const c of (cases ?? []) as TrustCaseRow[]) {
+    if (new Date(c.updated_at) > staleBefore) continue;
+    try {
+      if (await wasNotifiedRecently({ trustCaseId: c.id, templateType: "case_stalled", withinHours: 6 * 24 })) {
+        report.stalledSkipped++;
+        continue;
+      }
+      const recipient = (c.assigned_aep_user_id && (await resolveUserEmail(c.assigned_aep_user_id))) || process.env.AEP_TEAM_EMAIL;
+      if (!recipient) {
+        report.stalledErrors.push(`${c.case_reference}: no recipient (assign an owner or set AEP_TEAM_EMAIL)`);
+        continue;
+      }
+      const result = await notifyCaseStalled({
+        trustCaseId: c.id,
+        caseReference: c.case_reference,
+        trustName: c.trust_name,
+        status: OVERALL_STATUS_LABEL[c.overall_status],
+        lastActivity: c.updated_at.slice(0, 10),
+        days: Math.floor((now.getTime() - new Date(c.updated_at).getTime()) / 86400000),
+        recipient,
+      });
+      if (result.success) report.stalledNudgesSent++;
+      else report.stalledErrors.push(`${c.case_reference}: ${result.error}`);
+    } catch (err) {
+      report.stalledErrors.push(`${c.case_reference}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

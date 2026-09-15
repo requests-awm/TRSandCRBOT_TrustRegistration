@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { authMode, dataSource, supabaseAnonKey, supabaseUrl } from "@/server/env";
 
 // Session guard for the app pages. Runs before every page render (API routes check auth themselves).
 // - Anonymous visitors to /dashboard, /cases, /audit are sent to /login.
@@ -7,16 +8,15 @@ import { createServerClient } from "@supabase/ssr";
 // - Refreshes the Supabase session cookie on the way through.
 // Skipped in placeholder mode (NEXT_PUBLIC_DATA_SOURCE=mock) and header-based dev auth (AUTH_MODE=dev).
 export async function proxy(request: NextRequest) {
-  const guardActive =
-    process.env.NEXT_PUBLIC_DATA_SOURCE === "http" &&
-    process.env.AUTH_MODE !== "dev" &&
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const url = supabaseUrl();
+  const anonKey = supabaseAnonKey();
+  const guardActive = dataSource() === "http" && authMode() !== "dev" && Boolean(url && anonKey);
 
   if (!guardActive) return NextResponse.next();
 
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const supabase = createServerClient(url!, anonKey!, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet) => {

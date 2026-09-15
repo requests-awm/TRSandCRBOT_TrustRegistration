@@ -109,11 +109,12 @@ What goes where:
 
 | Value | Where it is read | Why |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_DATA_SOURCE`, `NEXT_PUBLIC_AUTH_MODE` | build args (compiled into the browser bundle) | change them → rebuild the image |
-| `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_MODE`, email, storage, `CRON_SECRET` | runtime env (`env_file: .env.local`) | one image can be promoted between environments |
+| Everything, including `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_DATA_SOURCE`, `NEXT_PUBLIC_AUTH_MODE` | runtime env (`env_file: .env.local`, Cloud Run env vars) | one image serves every environment; the root layout injects the public values per request (`src/lib/publicConfig.ts`), server code reads through `src/server/env.ts` |
 | `DATABASE_URL` | `migrator` service only | the app itself never opens a Postgres connection |
 
-`.env*` files are excluded from the build context by `.dockerignore`, so no secret is baked into a layer.
+The `Dockerfile` sits at the **repository root** (two levels above this folder) so Cloud Run's repository trigger
+finds it at its default location; the build context is the repository root and only `app/trust-reg` is copied in.
+`.env*` files are excluded by the root `.dockerignore`, so no secret is baked into a layer.
 
 Compose services:
 
@@ -125,16 +126,13 @@ Compose services:
 Build the image by hand:
 
 ```bash
-docker build -t awm/trust-reg:1.0.0 \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=... \
-  --build-arg NEXT_PUBLIC_DATA_SOURCE=http \
-  --build-arg NEXT_PUBLIC_AUTH_MODE=supabase .
-docker run --rm -p 3000:3000 --env-file .env.local awm/trust-reg:1.0.0
+# from the repository root
+docker build -t awm/trust-reg:1.0.0 .
+docker run --rm -p 3000:3000 --env-file app/trust-reg/.env.local awm/trust-reg:1.0.0
 ```
 
-For a placeholder-mode demo container (no database at all), build with `NEXT_PUBLIC_DATA_SOURCE=mock` and any
-non-empty values for the two Supabase build args.
+For a placeholder-mode demo container (no database at all), run the same image with
+`NEXT_PUBLIC_DATA_SOURCE=mock` in its environment; nothing needs rebuilding.
 
 ## Deploy to Google Cloud (Cloud Run)
 

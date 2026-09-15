@@ -1,11 +1,12 @@
 import { ApiError, type TrustRegApi } from "./client";
 import { readDevRole } from "@/lib/session/devRole";
+import { publicConfig } from "@/lib/publicConfig";
 
 // Talks to the Next.js route handlers. In AUTH_MODE=dev the chosen role travels in a header;
 // with Supabase auth the session cookie does the work and the header is ignored.
 function authHeaders(init: RequestInit = {}): Headers {
   const headers = new Headers(init.headers);
-  if (process.env.NEXT_PUBLIC_AUTH_MODE === "dev") {
+  if (publicConfig().authMode === "dev") {
     headers.set("x-dev-role", readDevRole());
   }
   return headers;
@@ -77,4 +78,7 @@ export const httpClient: TrustRegApi = {
   getDocumentDownload: (id) => request(`/api/registration-documents/${id}/download`),
   listEvents: (caseId) => request(`/api/trust-cases/${caseId}/events`),
   listAllEvents: (filter = {}) => request(`/api/events${qs({ type: filter.type, caseId: filter.caseId, from: filter.from, to: filter.to })}`),
+  searchClients: (q) => request(`/api/clients/search${qs({ q })}`),
+  listProfiles: (roles) => request(`/api/profiles${qs({ roles: roles?.join(",") })}`),
+  assignOwner: (caseId, aepUserId) => request(`/api/trust-cases/${caseId}`, { method: "PATCH", body: JSON.stringify({ assignedAepUserId: aepUserId }) }),
 };

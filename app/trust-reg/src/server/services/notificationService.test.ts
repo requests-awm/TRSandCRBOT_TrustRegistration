@@ -5,7 +5,7 @@ const base = { caseReference: "NTR-2026-000007", trustName: "Whitcombe Loan Trus
 
 describe("renderNotification", () => {
   it("prefixes every subject with the case reference", () => {
-    for (const t of ["ready_for_provider", "handed_back_to_wm", "authority_query", "evidence_rejected", "evidence_verified", "deadline_approaching"] as const) {
+    for (const t of ["ready_for_provider", "handed_back_to_wm", "authority_query", "evidence_rejected", "evidence_verified", "deadline_approaching", "status_changed", "case_stalled"] as const) {
       expect(renderNotification(t, base).subject.startsWith("[NTR-2026-000007]")).toBe(true);
     }
   });
