@@ -33,7 +33,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script id="trust-reg-config" dangerouslySetInnerHTML={{ __html: publicConfigScript(cfg) }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

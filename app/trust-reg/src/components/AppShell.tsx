@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/lib/session/SessionProvider";
@@ -24,8 +25,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="flex w-full flex-col border-b border-slate-200 bg-white print:hidden md:min-h-screen md:w-60 md:border-b-0 md:border-r">
         <div className="px-5 py-4">
           <Link href="/dashboard" className="block">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">AWM</div>
-            <div className="text-base font-semibold">Trust Registration</div>
+            <Image src="/awm-logo.png" alt="Ascot Wealth Management" width={1158} height={546} priority className="h-12 w-auto" />
+            <div className="mt-2 text-sm font-semibold text-slate-800">Trust Registration</div>
           </Link>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">

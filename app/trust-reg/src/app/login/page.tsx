@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import Image from "next/image";
 import { createBrowserClient } from "@supabase/ssr";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { publicConfig } from "@/lib/publicConfig";
@@ -71,8 +72,8 @@ function LoginForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm space-y-4">
-        <div className="text-center">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">AWM</div>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Image src="/awm-logo.png" alt="Ascot Wealth Management" width={1158} height={546} priority className="h-16 w-auto" />
           <h1 className="text-xl font-semibold text-slate-900">Trust Registration</h1>
         </div>
         <Card>
