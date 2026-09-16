@@ -80,12 +80,27 @@ export function LinkButton({ href, children, variant = "primary" }: { href: stri
   );
 }
 
-export function Card({ title, actions, children, className }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+// variant "inner": a section nested inside another Card. Flat tint instead of a second shadow, so the
+// outer card stays the one raised object on the page.
+export function Card({
+  title,
+  actions,
+  children,
+  className,
+  variant = "default",
+}: {
+  title?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  variant?: "default" | "inner";
+}) {
+  const inner = variant === "inner";
   return (
-    <section className={cx("rounded-lg bg-white ring-1 ring-slate-200 shadow-sm", className)}>
+    <section className={cx(inner ? "rounded-md bg-slate-50 ring-1 ring-slate-200" : "rounded-lg bg-white ring-1 ring-slate-200 shadow-sm", className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <header className={cx("flex items-center justify-between gap-3 border-b border-slate-200", inner ? "px-4 py-2.5" : "px-4 py-3")}>
+          {inner ? <h3 className="text-sm font-semibold text-slate-800">{title}</h3> : <h2 className="text-sm font-semibold text-slate-900">{title}</h2>}
           {actions}
         </header>
       )}

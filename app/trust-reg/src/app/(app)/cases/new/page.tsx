@@ -82,7 +82,9 @@ export default function NewCasePage() {
       </div>
 
       <form onSubmit={submit} className="space-y-6">
-        <Card title="Client and trust">
+        <Card title="Registration request">
+        <div className="space-y-4">
+        <Card variant="inner" title="Client and trust">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Client" required error={errors.clientDisplayName} hint="Search the client master by surname or Insightly ID; pick a result to fill both fields">
               <ClientLookup
@@ -111,7 +113,7 @@ export default function NewCasePage() {
           </div>
         </Card>
 
-        <Card title="Provider">
+        <Card variant="inner" title="Provider">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Provider name" required error={errors.providerName}>
               <Input value={form.providerName} onChange={set("providerName")} placeholder="e.g. Utmost International" list="provider-suggestions" />
@@ -131,7 +133,7 @@ export default function NewCasePage() {
           </div>
         </Card>
 
-        <Card title="Request">
+        <Card variant="inner" title="Request">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Requesting WM team" required error={errors.requestingWmTeam}>
               <Input value={form.requestingWmTeam} onChange={set("requestingWmTeam")} />
@@ -149,6 +151,8 @@ export default function NewCasePage() {
               <Input type="date" value={form.targetProviderSubmissionDate} onChange={set("targetProviderSubmissionDate")} />
             </Field>
           </div>
+        </Card>
+        </div>
         </Card>
 
         {serverError && <Alert tone="error">{serverError}</Alert>}
